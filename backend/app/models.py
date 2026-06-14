@@ -1,35 +1,62 @@
-from typing import Literal
-
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
-class CriterionInput(BaseModel):
-    code: str
-    name: str | None = None
-    weight: float = Field(gt=0)
-    type: Literal["benefit", "cost"] = "benefit"
+class Aircraft(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    id: str
+    modelo: str
+    imagem_url: str | None = None
+    custo_aquisicao: float = Field(ge=0)
+    custo_manutencao: float = Field(ge=0)
+    custo_combustivel_hora: float = Field(ge=0)
+    autonomia_km: float = Field(ge=0)
+    pax: int = Field(ge=0)
+    carga_kg: float = Field(ge=0)
 
 
-class VikorRequest(BaseModel):
-    alternatives: list[str] = Field(min_length=2)
-    criteria: list[CriterionInput] = Field(min_length=1)
-    scores: dict[str, dict[str, float]]
-    v: float = Field(default=0.5, ge=0, le=1)
+class AircraftDebugResponse(BaseModel):
+    id: str
+    modelo: str
+    imagem: str
+    custo_aquisicao: float
+    custo_manutencao: float
+    custo_combustivel_hora: float
+    autonomia_km: float
+    pax: int
+    carga_kg: float
 
 
-class VikorResult(BaseModel):
-    alternative: str
-    rank: int
-    s: float
-    r: float
-    q: float
+class VikorWeights(BaseModel):
+    aquisicao: float = Field(default=20, ge=0)
+    manutencao: float = Field(default=20, ge=0)
+    combustivel: float = Field(default=20, ge=0)
+    pax: float = Field(default=20, ge=0)
+    carga: float = Field(default=20, ge=0)
 
 
-class VikorResponse(BaseModel):
-    v: float
-    results: list[VikorResult]
-    ranking: list[str]
-    acceptable_advantage: bool
-    acceptable_stability: bool
-    acceptable_advantage_threshold: float
-    weights_sum_after_normalization: float
+class AviationVikorRequest(BaseModel):
+    destino: str = ""
+    pesos: VikorWeights = Field(default_factory=VikorWeights)
+    aeronaves_ids: list[str] = Field(default_factory=list)
+
+
+class RejectedAircraft(BaseModel):
+    id: str
+    modelo: str
+    motivo: str
+
+
+class AviationRankingItem(BaseModel):
+    id: str
+    modelo: str
+    imagem: str
+    Q: float
+    S: float
+    R: float
+
+
+class AviationVikorResponse(BaseModel):
+    distancia_km: int
+    rejeitadas: list[RejectedAircraft]
+    ranking: list[AviationRankingItem]

@@ -1,81 +1,189 @@
-# Projeto VIKOR SAD (ESBOÇO/ETAPA INICIAL/AMBIENTAÇÃO)
+# AeroVIKOR Decision Hub
 
-Aplicacao Web para replicar o estudo de caso do artigo "Multi-attribute evaluation method of nuclear island plant overall layout schemes based on linguistic intuitionistic fuzzy VIKOR".
+Aplicacao Web para selecao multicriterio de aeronaves usando o metodo VIKOR.
 
-O objetivo inicial é entregar um MVP para a Fase 2 da disciplina: uma interface simples para visualizar alternativas, criterios, pesos e ranking VIKOR do artigo, com backend FastAPI preparado para calculos VIKOR numericos.
+O frontend permite cadastrar aeronaves no Supabase, escolher uma missao saindo de Recife, ajustar pesos de decisao e visualizar o ranking final. O backend FastAPI e o motor de decisao: calcula distancia, filtra autonomia e executa o VIKOR.
 
-## Artigo base
+## Funcao do backend
 
-- Titulo: Multi-attribute evaluation method of nuclear island plant overall layout schemes based on linguistic intuitionistic fuzzy VIKOR
-- Autores: Dong Hao, JinCheng Su, YanFang Fan
-- Periodico: Annals of Nuclear Energy 227 (2026) 111950
-- DOI: https://doi.org/10.1016/j.anucene.2025.111950
+O frontend esta pronto para chamar `POST /vikor`. Esse endpoint recebe:
+
+- destino da missao;
+- pesos dos criterios;
+- IDs das aeronaves selecionadas.
+
+O backend entao:
+
+1. Busca as aeronaves no Supabase.
+2. Calcula a distancia de `Recife, PE` ate o destino.
+3. Remove aeronaves com autonomia insuficiente.
+4. Aplica VIKOR nas aeronaves aprovadas.
+5. Retorna ranking com `Q`, `S` e `R`.
 
 ## Stack
 
-- Frontend: React
-- Backend: FastAPI
-- Versionamento: Git + GitHub
-- Deploy: etapa seguinte
+- Frontend: React + TanStack Start + Vite
+- Banco: Supabase/PostgreSQL
+- Backend: FastAPI/Python
+- Deploy sugerido: Frontend na Vercel ou Lovable, backend no Render
 
-## Como rodar
+## Backend local
 
-### Backend
-
-Requer Python 3.11 ou superior.
+Requer Python 3.11+.
 
 ```powershell
 cd backend
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+Configure as variaveis de ambiente:
+
+```powershell
+$env:SUPABASE_URL="https://seu-projeto.supabase.co"
+$env:SUPABASE_SERVICE_ROLE_KEY="sua_service_role_key"
+$env:ALLOWED_ORIGINS="http://localhost:3000,http://localhost:5173"
+$env:GEOCODER_USER_AGENT="AeroVIKOR/1.0 contato:seu-email@example.com"
+```
+
+Inicie a API:
+
+```powershell
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
 ```
 
-API local:
+URLs locais:
 
-- Health check: http://localhost:8000/health
+- API: http://localhost:8000
 - Swagger/OpenAPI: http://localhost:8000/docs
-- Caso do artigo: http://localhost:8000/api/article-case
+- Health check: http://localhost:8000/health
 
-### Frontend
+## Endpoints
 
-Requer Node.js 20 ou superior.
+### GET /health
 
-```powershell
-cd frontend
-npm install
-npm.cmd run dev
-```
+Verifica se o backend esta no ar.
 
-Aplicacao local:
+### GET /aircrafts
 
-- http://localhost:5173
+Lista aeronaves do Supabase para debug no Swagger.
 
-Se o backend estiver rodando, o frontend usa a API. Se nao estiver, ele usa um fallback local com os mesmos dados do MVP.
+### POST /vikor
 
-## Funcionalidades do MVP
-
-- Mostra o ranking publicado no artigo: X4 > X1 > X3 > X2.
-- Exibe valores S, R e Q do metodo VIKOR.
-- Lista criterios, dimensoes e pesos DEMATEL-ANP.
-- Mostra a matriz agregada LIFN do artigo.
-- Exporta o ranking em CSV.
-- Disponibiliza endpoint generico `POST /api/vikor` para calculo VIKOR numerico.
-
-## Exemplo de payload para POST /api/vikor
+Payload esperado pelo frontend:
 
 ```json
 {
-  "alternatives": ["A1", "A2", "A3"],
-  "criteria": [
-    { "code": "cost", "weight": 0.4, "type": "cost" },
-    { "code": "quality", "weight": 0.6, "type": "benefit" }
-  ],
-  "scores": {
-    "A1": { "cost": 100, "quality": 70 },
-    "A2": { "cost": 120, "quality": 90 },
-    "A3": { "cost": 80, "quality": 75 }
+  "destino": "Natal, RN",
+  "pesos": {
+    "aquisicao": 20,
+    "manutencao": 20,
+    "combustivel": 20,
+    "pax": 20,
+    "carga": 20
   },
-  "v": 0.5
+  "aeronaves_ids": ["uuid-1", "uuid-2"]
 }
+```
+
+Resposta:
+
+```json
+{
+  "distancia_km": 264,
+  "rejeitadas": [
+    {
+      "id": "uuid-1",
+      "modelo": "Aeronave X",
+      "motivo": "Autonomia insuficiente: 200 km < 264 km"
+    }
+  ],
+  "ranking": [
+    {
+      "id": "uuid-2",
+      "modelo": "Aeronave Y",
+      "imagem": "https://...",
+      "Q": 0.0,
+      "S": 0.0,
+      "R": 0.0
+    }
+  ]
+}
+```
+
+## Criterios VIKOR
+
+Custos, onde menor e melhor:
+
+- `custo_aquisicao`
+- `custo_manutencao`
+- `custo_combustivel_hora`
+
+Beneficios, onde maior e melhor:
+
+- `pax`
+- `carga_kg`
+
+Filtro eliminatorio:
+
+- `autonomia_km` precisa ser maior ou igual a distancia da missao.
+
+## Frontend local
+
+O frontend fica em `frontend/` e foi feito com Bun/TanStack Start.
+
+```powershell
+cd frontend
+bun install
+bun dev
+```
+
+Configure as variaveis do frontend:
+
+```env
+VITE_SUPABASE_URL=https://seu-projeto.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=sua_publishable_key
+VITE_AVIATION_API_URL=http://localhost:8000
+```
+
+## Deploy do backend no Render
+
+Crie um Web Service no Render apontando para o repositorio.
+
+Configuracao:
+
+- Root directory: `backend`
+- Build command: `pip install -r requirements.txt`
+- Start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+
+Variaveis no Render:
+
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `ALLOWED_ORIGINS=https://seu-frontend.vercel.app`
+- `GEOCODER_USER_AGENT=AeroVIKOR/1.0 contato:seu-email@example.com`
+
+No plano gratuito do Render, a API pode dormir apos alguns minutos sem requisicoes. A primeira chamada depois disso pode demorar mais.
+
+## Deploy do frontend
+
+Na Vercel ou Lovable, configure:
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_PUBLISHABLE_KEY`
+- `VITE_AVIATION_API_URL=https://seu-backend.onrender.com`
+
+Depois de alterar variaveis de ambiente, faca um novo deploy.
+
+## Testes
+
+```powershell
+cd backend
+.\.venv\Scripts\python.exe tests\test_vikor.py
+```
+
+Ou, se estiver usando outro Python com as dependencias instaladas:
+
+```powershell
+python tests\test_vikor.py
 ```
