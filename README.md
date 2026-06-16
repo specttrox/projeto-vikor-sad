@@ -15,10 +15,13 @@ O frontend esta pronto para chamar `POST /vikor`. Esse endpoint recebe:
 O backend entao:
 
 1. Busca as aeronaves no Supabase.
-2. Calcula a distancia de `Recife, PE` ate o destino.
+2. Consulta a distancia do destino em uma tabela offline do proprio projeto.
 3. Remove aeronaves com autonomia insuficiente.
 4. Aplica VIKOR nas aeronaves aprovadas.
 5. Retorna ranking com `Q`, `S` e `R`.
+
+O backend nao depende de API externa de geolocalizacao. O usuario escolhe ou
+digita um dos destinos pre-carregados expostos por `GET /destinations`.
 
 ## Stack
 
@@ -39,11 +42,20 @@ python -m venv .venv
 
 Configure as variaveis de ambiente:
 
+Opcao mais simples: copie `backend/.env.example` para `backend/.env` e preencha:
+
+```env
+SUPABASE_URL=https://seu-projeto.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=sua_service_role_key
+ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173
+```
+
+Ou defina pelo PowerShell:
+
 ```powershell
 $env:SUPABASE_URL="https://seu-projeto.supabase.co"
 $env:SUPABASE_SERVICE_ROLE_KEY="sua_service_role_key"
 $env:ALLOWED_ORIGINS="http://localhost:3000,http://localhost:5173"
-$env:GEOCODER_USER_AGENT="AeroVIKOR/1.0 contato:seu-email@example.com"
 ```
 
 Inicie a API:
@@ -68,6 +80,21 @@ Verifica se o backend esta no ar.
 
 Lista aeronaves do Supabase para debug no Swagger.
 
+### GET /destinations
+
+Lista os destinos disponiveis partindo de Recife, com distancia aerea aproximada
+em km. Exemplo de item:
+
+```json
+{
+  "id": "natal-rn",
+  "nome": "Natal",
+  "uf": "RN",
+  "aeroporto": "NAT - Aeroporto de Natal",
+  "distancia_km": 253
+}
+```
+
 ### POST /vikor
 
 Payload esperado pelo frontend:
@@ -90,12 +117,12 @@ Resposta:
 
 ```json
 {
-  "distancia_km": 264,
+  "distancia_km": 253,
   "rejeitadas": [
     {
       "id": "uuid-1",
       "modelo": "Aeronave X",
-      "motivo": "Autonomia insuficiente: 200 km < 264 km"
+      "motivo": "Autonomia insuficiente: 200 km < 253 km"
     }
   ],
   "ranking": [
@@ -132,6 +159,16 @@ Filtro eliminatorio:
 
 O frontend fica em `frontend/` e foi feito com Bun/TanStack Start.
 
+Como este PC nao tem Bun instalado, este caminho com npm tambem funciona:
+
+```powershell
+cd frontend
+npm.cmd install --no-package-lock --legacy-peer-deps
+npm.cmd run dev
+```
+
+Se voce tiver Bun instalado, use:
+
 ```powershell
 cd frontend
 bun install
@@ -139,6 +176,8 @@ bun dev
 ```
 
 Configure as variaveis do frontend:
+
+Copie `frontend/.env.example` para `frontend/.env` e preencha:
 
 ```env
 VITE_SUPABASE_URL=https://seu-projeto.supabase.co
@@ -161,7 +200,6 @@ Variaveis no Render:
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `ALLOWED_ORIGINS=https://seu-frontend.vercel.app`
-- `GEOCODER_USER_AGENT=AeroVIKOR/1.0 contato:seu-email@example.com`
 
 No plano gratuito do Render, a API pode dormir apos alguns minutos sem requisicoes. A primeira chamada depois disso pode demorar mais.
 

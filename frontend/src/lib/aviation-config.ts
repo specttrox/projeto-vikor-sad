@@ -5,6 +5,7 @@ export const API_BASE_URL =
 
 export const API_ENDPOINTS = {
   aircrafts: `${API_BASE_URL}/aircrafts`,
+  destinations: `${API_BASE_URL}/destinations`,
   vikor: `${API_BASE_URL}/vikor`,
 };
 

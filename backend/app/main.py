@@ -3,11 +3,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .aviation import filter_by_autonomy
 from .config import get_settings
-from .geocoding import GeocodingError, distance_from_recife_km
+from .geocoding import GeocodingError, distance_from_recife_km, list_destinations
 from .models import (
     AircraftDebugResponse,
     AviationVikorRequest,
     AviationVikorResponse,
+    DestinationResponse,
 )
 from .supabase import (
     SupabaseAircraftRepository,
@@ -21,7 +22,10 @@ repository = SupabaseAircraftRepository(settings)
 
 app = FastAPI(
     title="AeroVIKOR API",
-    description="FastAPI backend for aircraft selection using the VIKOR method.",
+    description=(
+        "FastAPI backend for aircraft selection using the VIKOR method "
+        "and offline route distances from Recife."
+    ),
     version="1.0.0",
 )
 
@@ -73,6 +77,11 @@ def list_aircrafts():
         raise _map_backend_error(exc) from exc
 
 
+@app.get("/destinations", response_model=list[DestinationResponse])
+def get_destinations():
+    return list_destinations()
+
+
 @app.post("/vikor", response_model=AviationVikorResponse)
 def run_aircraft_vikor(payload: AviationVikorRequest):
     destino = payload.destino.strip()
@@ -85,10 +94,7 @@ def run_aircraft_vikor(payload: AviationVikorRequest):
         )
 
     try:
-        distance_km = distance_from_recife_km(
-            destination=destino,
-            user_agent=settings.geocoder_user_agent,
-        )
+        distance_km = distance_from_recife_km(destino)
         aircrafts = repository.list_aircrafts(ids=payload.aeronaves_ids)
         found_ids = {aircraft.id for aircraft in aircrafts}
         missing_ids = [

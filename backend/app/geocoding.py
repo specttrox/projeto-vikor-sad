@@ -1,48 +1,53 @@
-from math import asin, cos, radians, sin, sqrt
-from urllib.parse import urlencode
-from urllib.request import Request, urlopen
-import json
 import unicodedata
+from dataclasses import asdict, dataclass
 
 
 class GeocodingError(ValueError):
-    """Raised when a destination cannot be converted to coordinates."""
+    """Raised when a destination is not available in the offline table."""
 
 
-RECIFE_COORDS = (-8.0476, -34.8770)
+@dataclass(frozen=True)
+class Destination:
+    id: str
+    nome: str
+    uf: str
+    aeroporto: str
+    distancia_km: int
 
-DESTINATION_COORDS = {
-    "recife": RECIFE_COORDS,
-    "recife pe": RECIFE_COORDS,
-    "natal": (-5.7945, -35.2110),
-    "natal rn": (-5.7945, -35.2110),
-    "fortaleza": (-3.7319, -38.5267),
-    "fortaleza ce": (-3.7319, -38.5267),
-    "salvador": (-12.9777, -38.5016),
-    "salvador ba": (-12.9777, -38.5016),
-    "joao pessoa": (-7.1195, -34.8450),
-    "joao pessoa pb": (-7.1195, -34.8450),
-    "maceio": (-9.6498, -35.7089),
-    "maceio al": (-9.6498, -35.7089),
-    "aracaju": (-10.9472, -37.0731),
-    "aracaju se": (-10.9472, -37.0731),
-    "fernando de noronha": (-3.8549, -32.4230),
-    "fernando de noronha pe": (-3.8549, -32.4230),
-    "brasilia": (-15.7939, -47.8828),
-    "brasilia df": (-15.7939, -47.8828),
-    "sao paulo": (-23.5558, -46.6396),
-    "sao paulo sp": (-23.5558, -46.6396),
-    "rio de janeiro": (-22.9068, -43.1729),
-    "rio de janeiro rj": (-22.9068, -43.1729),
-    "belem": (-1.4558, -48.4902),
-    "belem pa": (-1.4558, -48.4902),
-    "manaus": (-3.1190, -60.0217),
-    "manaus am": (-3.1190, -60.0217),
-    "teresina": (-5.0919, -42.8034),
-    "teresina pi": (-5.0919, -42.8034),
-    "sao luis": (-2.5307, -44.3068),
-    "sao luis ma": (-2.5307, -44.3068),
-}
+
+DESTINATIONS = [
+    Destination("natal-rn", "Natal", "RN", "NAT - Aeroporto de Natal", 253),
+    Destination("fortaleza-ce", "Fortaleza", "CE", "FOR - Aeroporto de Fortaleza", 630),
+    Destination("joao-pessoa-pb", "Joao Pessoa", "PB", "JPA - Aeroporto de Joao Pessoa", 105),
+    Destination("maceio-al", "Maceio", "AL", "MCZ - Aeroporto de Maceio", 203),
+    Destination("aracaju-se", "Aracaju", "SE", "AJU - Aeroporto de Aracaju", 397),
+    Destination("salvador-ba", "Salvador", "BA", "SSA - Aeroporto de Salvador", 676),
+    Destination(
+        "fernando-de-noronha-pe",
+        "Fernando de Noronha",
+        "PE",
+        "FEN - Aeroporto de Fernando de Noronha",
+        545,
+    ),
+    Destination("brasilia-df", "Brasilia", "DF", "BSB - Aeroporto de Brasilia", 1655),
+    Destination("sao-paulo-sp", "Sao Paulo", "SP", "GRU/CGH - Aeroportos de Sao Paulo", 2128),
+    Destination(
+        "rio-de-janeiro-rj",
+        "Rio de Janeiro",
+        "RJ",
+        "GIG/SDU - Aeroportos do Rio de Janeiro",
+        1878,
+    ),
+    Destination("belo-horizonte-mg", "Belo Horizonte", "MG", "CNF - Aeroporto de Confins", 1641),
+    Destination("campinas-sp", "Campinas", "SP", "VCP - Aeroporto de Viracopos", 2093),
+    Destination("curitiba-pr", "Curitiba", "PR", "CWB - Aeroporto de Curitiba", 2459),
+    Destination("porto-alegre-rs", "Porto Alegre", "RS", "POA - Aeroporto de Porto Alegre", 2978),
+    Destination("belem-pa", "Belem", "PA", "BEL - Aeroporto de Belem", 1676),
+    Destination("manaus-am", "Manaus", "AM", "MAO - Aeroporto de Manaus", 2840),
+    Destination("teresina-pi", "Teresina", "PI", "THE - Aeroporto de Teresina", 934),
+    Destination("sao-luis-ma", "Sao Luis", "MA", "SLZ - Aeroporto de Sao Luis", 1205),
+    Destination("petrolina-pe", "Petrolina", "PE", "PNZ - Aeroporto de Petrolina", 637),
+]
 
 
 def normalize_place_name(value: str) -> str:
@@ -55,61 +60,41 @@ def normalize_place_name(value: str) -> str:
     return " ".join(cleaned.split())
 
 
-def haversine_km(origin: tuple[float, float], destination: tuple[float, float]) -> float:
-    origin_lat, origin_lon = origin
-    dest_lat, dest_lon = destination
-    radius_km = 6371.0
-
-    d_lat = radians(dest_lat - origin_lat)
-    d_lon = radians(dest_lon - origin_lon)
-    lat1 = radians(origin_lat)
-    lat2 = radians(dest_lat)
-
-    a = sin(d_lat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(d_lon / 2) ** 2
-    c = 2 * asin(sqrt(a))
-    return radius_km * c
+def _destination_aliases(destination: Destination) -> set[str]:
+    return {
+        normalize_place_name(destination.id),
+        normalize_place_name(destination.nome),
+        normalize_place_name(f"{destination.nome} {destination.uf}"),
+        normalize_place_name(f"{destination.nome}, {destination.uf}"),
+    }
 
 
-def geocode_destination(destination: str, user_agent: str) -> tuple[float, float]:
-    normalized = normalize_place_name(destination)
+DESTINATIONS_BY_ALIAS = {
+    alias: destination
+    for destination in DESTINATIONS
+    for alias in _destination_aliases(destination)
+}
+
+
+def list_destinations() -> list[dict[str, str | int]]:
+    return [asdict(destination) for destination in DESTINATIONS]
+
+
+def resolve_destination(value: str) -> Destination:
+    normalized = normalize_place_name(value)
     if not normalized:
         raise GeocodingError("Informe um destino.")
 
-    if normalized in DESTINATION_COORDS:
-        return DESTINATION_COORDS[normalized]
+    destination = DESTINATIONS_BY_ALIAS.get(normalized)
+    if destination:
+        return destination
 
-    params = urlencode(
-        {
-            "format": "jsonv2",
-            "limit": "1",
-            "countrycodes": "br",
-            "q": destination,
-        }
-    )
-    request = Request(
-        f"https://nominatim.openstreetmap.org/search?{params}",
-        headers={"User-Agent": user_agent, "Accept": "application/json"},
+    available = ", ".join(f"{item.nome}, {item.uf}" for item in DESTINATIONS)
+    raise GeocodingError(
+        "Destino indisponivel. Escolha um dos destinos pre-carregados: "
+        f"{available}."
     )
 
-    try:
-        with urlopen(request, timeout=8) as response:
-            data = json.loads(response.read().decode("utf-8"))
-    except Exception as exc:
-        raise GeocodingError(
-            "Nao foi possivel consultar o geocodificador para este destino."
-        ) from exc
 
-    if not data:
-        raise GeocodingError(f"Destino nao encontrado: {destination}")
-
-    try:
-        return float(data[0]["lat"]), float(data[0]["lon"])
-    except (KeyError, TypeError, ValueError) as exc:
-        raise GeocodingError(
-            "O geocodificador retornou uma resposta inesperada."
-        ) from exc
-
-
-def distance_from_recife_km(destination: str, user_agent: str) -> int:
-    coords = geocode_destination(destination, user_agent)
-    return round(haversine_km(RECIFE_COORDS, coords))
+def distance_from_recife_km(destination: str) -> int:
+    return resolve_destination(destination).distancia_km

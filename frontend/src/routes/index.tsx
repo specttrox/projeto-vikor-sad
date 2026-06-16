@@ -61,6 +61,14 @@ interface VikorResult {
   ranking: { id: string; modelo: string; imagem: string; Q: number; S: number; R: number }[];
 }
 
+interface DestinationOption {
+  id: string;
+  nome: string;
+  uf: string;
+  aeroporto: string;
+  distancia_km: number;
+}
+
 const emptyForm = {
   modelo: "",
   imagem: "",
@@ -77,6 +85,7 @@ function Dashboard() {
   const [form, setForm] = useState(emptyForm);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [destino, setDestino] = useState("");
+  const [destinations, setDestinations] = useState<DestinationOption[]>([]);
   const [weights, setWeights] = useState({
     aquisicao: 20,
     manutencao: 20,
@@ -98,10 +107,58 @@ function Dashboard() {
       });
   }, []);
 
+  useEffect(() => {
+    fetch(API_ENDPOINTS.destinations)
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+      .then((data: DestinationOption[]) => setDestinations(data))
+      .catch(() => {
+        setDestinations([]);
+      });
+  }, []);
+
   const totalWeight = useMemo(
     () => Object.values(weights).reduce((a, b) => a + b, 0),
     [weights],
   );
+
+  // Ajusta um peso e redistribui os demais proporcionalmente para a soma ficar sempre 100.
+  function setWeight(key: keyof typeof weights, value: number) {
+    setWeights((prev) => {
+      const v = Math.max(0, Math.min(100, Math.round(value)));
+      const others = (Object.keys(prev) as (keyof typeof weights)[]).filter((k) => k !== key);
+      const remaining = 100 - v;
+      const othersTotal = others.reduce((sum, k) => sum + prev[k], 0);
+      const next = { ...prev, [key]: v };
+
+      if (othersTotal === 0) {
+        // Todos os outros estão em 0: distribui igualmente.
+        const base = Math.floor(remaining / others.length);
+        let leftover = remaining - base * others.length;
+        others.forEach((k) => {
+          next[k] = base + (leftover-- > 0 ? 1 : 0);
+        });
+      } else {
+        // Distribui proporcionalmente ao valor atual de cada peso.
+        const raw = others.map((k) => ({ k, exact: (prev[k] / othersTotal) * remaining }));
+        let allocated = 0;
+        raw.forEach((r) => {
+          next[r.k] = Math.floor(r.exact);
+          allocated += next[r.k];
+        });
+        // Sobra do arredondamento vai para os maiores restos fracionários.
+        let leftover = remaining - allocated;
+        raw
+          .sort((a, b) => (b.exact - Math.floor(b.exact)) - (a.exact - Math.floor(a.exact)))
+          .forEach((r) => {
+            if (leftover > 0) {
+              next[r.k] += 1;
+              leftover--;
+            }
+          });
+      }
+      return next;
+    });
+  }
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -293,11 +350,27 @@ function Dashboard() {
             <div className="rounded-2xl border border-border bg-card p-6">
               <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Destino</label>
               <input
+                list="destinos-disponiveis"
                 value={destino}
                 onChange={(e) => setDestino(e.target.value)}
-                placeholder="Ex: Natal, Fernando de Noronha"
+                placeholder="Selecione ou digite um destino disponivel"
                 className="mt-2 w-full rounded-lg border border-input bg-background px-4 py-3 text-lg font-medium outline-none ring-primary/40 focus:ring-2"
               />
+              <datalist id="destinos-disponiveis">
+                {destinations.map((destination) => (
+                  <option
+                    key={destination.id}
+                    value={`${destination.nome}, ${destination.uf}`}
+                  >
+                    {destination.aeroporto} - {destination.distancia_km} km
+                  </option>
+                ))}
+              </datalist>
+              {destinations.length > 0 && (
+                <div className="mt-2 text-xs text-muted-foreground">
+                  {destinations.length} destinos pre-carregados a partir de {ORIGIN}.
+                </div>
+              )}
             </div>
             <button
               onClick={handleVikor}
@@ -315,12 +388,12 @@ function Dashboard() {
               <span className="text-xs text-muted-foreground">Soma: <b className="text-foreground">{totalWeight}</b></span>
             </div>
             <div className="space-y-4">
-              <Slider label="💰 Custo de Aquisição" value={weights.aquisicao} onChange={(v) => setWeights({ ...weights, aquisicao: v })} color="primary" />
-              <Slider label="🔧 Manutenção" value={weights.manutencao} onChange={(v) => setWeights({ ...weights, manutencao: v })} color="primary" />
-              <Slider label="⛽ Combustível" value={weights.combustivel} onChange={(v) => setWeights({ ...weights, combustivel: v })} color="primary" />
+              <Slider label="💰 Custo de Aquisição" value={weights.aquisicao} onChange={(v) => setWeight("aquisicao", v)} color="primary" />
+              <Slider label="🔧 Manutenção" value={weights.manutencao} onChange={(v) => setWeight("manutencao", v)} color="primary" />
+              <Slider label="⛽ Combustível" value={weights.combustivel} onChange={(v) => setWeight("combustivel", v)} color="primary" />
               <div className="my-2 border-t border-dashed border-border" />
-              <Slider label="👥 Capacidade PAX" value={weights.pax} onChange={(v) => setWeights({ ...weights, pax: v })} color="accent" />
-              <Slider label="📦 Capacidade de Carga" value={weights.carga} onChange={(v) => setWeights({ ...weights, carga: v })} color="accent" />
+              <Slider label="👥 Capacidade PAX" value={weights.pax} onChange={(v) => setWeight("pax", v)} color="accent" />
+              <Slider label="📦 Capacidade de Carga" value={weights.carga} onChange={(v) => setWeight("carga", v)} color="accent" />
             </div>
           </div>
         </div>

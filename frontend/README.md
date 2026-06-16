@@ -24,15 +24,25 @@ Dashboard interativo para cadastro, filtragem e ranqueamento de aeronaves para m
    bun install
    ```
 
+   Se Bun nao estiver instalado, use npm:
+   ```bash
+   npm install --no-package-lock --legacy-peer-deps
+   ```
+
 3. **Configure as variáveis de ambiente:**
    ```bash
-   cp .env .env.local
+   cp .env.example .env
    ```
-   Edite `.env.local` com as credenciais do seu projeto Supabase.
+   Edite `.env` com as credenciais do Supabase e a URL do backend.
 
 4. **Inicie o servidor de desenvolvimento:**
    ```bash
    bun dev
+   ```
+
+   Com npm:
+   ```bash
+   npm run dev
    ```
 
 5. **Abra no navegador:**
@@ -42,6 +52,11 @@ Dashboard interativo para cadastro, filtragem e ranqueamento de aeronaves para m
 
 ```bash
 bun run build
+```
+
+Com npm:
+```bash
+npm run build
 ```
 
 O resultado do build fica em `.output/`.

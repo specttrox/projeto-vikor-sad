@@ -12,4 +12,9 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  // Fora do contexto Lovable o plugin de deploy do nitro fica desligado.
+  // Forcamos o preset da Vercel para o build gerar a saida em .vercel/output.
+  nitro: {
+    preset: "vercel",
+  },
 });

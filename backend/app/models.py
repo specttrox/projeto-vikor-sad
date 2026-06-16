@@ -1,4 +1,6 @@
-from pydantic import BaseModel, ConfigDict, Field
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class Aircraft(BaseModel):
@@ -39,6 +41,27 @@ class AviationVikorRequest(BaseModel):
     destino: str = ""
     pesos: VikorWeights = Field(default_factory=VikorWeights)
     aeronaves_ids: list[str] = Field(default_factory=list)
+
+    @field_validator("aeronaves_ids")
+    @classmethod
+    def validate_aircraft_ids(cls, values: list[str]) -> list[str]:
+        normalized_ids: list[str] = []
+        for value in values:
+            try:
+                normalized_ids.append(str(UUID(str(value))))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    "aeronaves_ids deve conter apenas UUIDs validos."
+                ) from exc
+        return normalized_ids
+
+
+class DestinationResponse(BaseModel):
+    id: str
+    nome: str
+    uf: str
+    aeroporto: str
+    distancia_km: int
 
 
 class RejectedAircraft(BaseModel):

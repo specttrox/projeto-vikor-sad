@@ -16,12 +16,17 @@ CRITERIA = [
 
 
 def _get_value(aircraft: Any, field: str) -> float:
-    if isinstance(aircraft, dict):
-        value = aircraft[field]
-    else:
-        value = getattr(aircraft, field)
+    try:
+        if isinstance(aircraft, dict):
+            value = aircraft[field]
+        else:
+            value = getattr(aircraft, field)
+        numeric_value = float(value)
+    except (KeyError, AttributeError, TypeError, ValueError) as exc:
+        raise VikorInputError(
+            f"Valor ausente ou invalido para {field}."
+        ) from exc
 
-    numeric_value = float(value)
     if not isfinite(numeric_value):
         raise VikorInputError(f"Valor invalido para {field}.")
     return numeric_value

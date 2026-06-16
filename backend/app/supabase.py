@@ -2,6 +2,8 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 import json
 
+from pydantic import ValidationError
+
 from .config import Settings
 from .models import Aircraft
 
@@ -61,4 +63,9 @@ class SupabaseAircraftRepository:
         if not isinstance(payload, list):
             raise SupabaseRequestError("Supabase retornou um payload inesperado.")
 
-        return [Aircraft.model_validate(item) for item in payload]
+        try:
+            return [Aircraft.model_validate(item) for item in payload]
+        except ValidationError as exc:
+            raise SupabaseRequestError(
+                "Supabase retornou aeronaves com dados ausentes ou invalidos."
+            ) from exc
